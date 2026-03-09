@@ -1,9 +1,12 @@
 import sys
 import json
 import os
+import threading
 
 from config.config_loader import load_common_config, load_peer_info
 from file_manager.piece_manager import PieceManager
+from networking.connection_manager import ConnectionManager
+from networking.server  import TCPServer
 
 
 def main():
@@ -54,6 +57,29 @@ def main():
     print(vars(piece_manager.bitfield))
     print("Pieces owned:", piece_manager.piece_count())
     print("Missing pieces:", piece_manager.bitfield.missing_pieces())
+
+    connection_manager = ConnectionManager(
+        peer_id,
+        peer_info_list
+    )   
+
+    server = TCPServer(
+        peer_id,
+        this_peer.hostname,
+        this_peer.port,
+        connection_manager
+    )
+
+        
+    server_thread = threading.Thread(target=server.start)
+    server_thread.daemon = True
+    server_thread.start()
+
+
+    connection_manager.start_outgoing_connections()
+
+    while True:
+        pass
 
 
 if __name__ == "__main__":
