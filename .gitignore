@@ -6,3 +6,6 @@ __pycache__/
 # virtual environments
 venv/
 .venv/
+
+# peer directories
+peer_*/

@@ -39,8 +39,8 @@ project/
 │
 ├── networking/ # TCP server and connection handling
 │   ├── server.py
-│   ├── connection.py
-│   └── handshake.py
+│   ├── client.py
+│   └── connection_manager.py
 │
 ├── protocol/ # message definitions and encoding/decoding
 │   ├── message.py
@@ -56,7 +56,7 @@ project/
 │
 ├── file_manager/ # file piece handling
 │   ├── piece_manager.py
-│   └── file_splitter.py
+│   └── bitfield.py
 │
 └── utils/ # add any necessary utilities
 ```

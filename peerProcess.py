@@ -1,7 +1,9 @@
 import sys
 import json
+import os
 
 from config.config_loader import load_common_config, load_peer_info
+from file_manager.piece_manager import PieceManager
 
 
 def main():
@@ -32,6 +34,26 @@ def main():
     if this_peer is None:
         print("Peer ID not found in PeerInfo.cfg")
         sys.exit(1)
+
+    # Create peer directory
+    peer_dir = f"peer_{peer_id}"
+
+    if not os.path.exists(peer_dir):
+        os.makedirs(peer_dir)
+
+    if this_peer.has_file:
+        print("Peer has the file, loading pieces...")
+        os.system(f"cp {common_cfg.file_name} {peer_dir}/")
+
+    piece_manager = PieceManager(
+        peer_id,
+        common_cfg,
+        this_peer.has_file
+    )
+
+    print(vars(piece_manager.bitfield))
+    print("Pieces owned:", piece_manager.piece_count())
+    print("Missing pieces:", piece_manager.bitfield.missing_pieces())
 
 
 if __name__ == "__main__":

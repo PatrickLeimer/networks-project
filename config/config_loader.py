@@ -7,6 +7,7 @@ class CommonConfig:
         self.file_name = file_name
         self.file_size = file_size
         self.piece_size = piece_size
+        self.num_pieces = (file_size + piece_size - 1) // piece_size
 
 
 
