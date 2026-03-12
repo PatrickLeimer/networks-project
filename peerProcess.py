@@ -3,6 +3,7 @@ import json
 import os
 
 from config.config_loader import load_common_config, load_peer_info
+from file_manager.logger import Logger
 from file_manager.piece_manager import PieceManager
 
 
@@ -34,6 +35,8 @@ def main():
     if this_peer is None:
         print("Peer ID not found in PeerInfo.cfg")
         sys.exit(1)
+
+    _logger = Logger(f"log_peer_{peer_id}.log")
 
     # Create peer directory
     peer_dir = f"peer_{peer_id}"
