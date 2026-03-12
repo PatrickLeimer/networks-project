@@ -1,4 +1,4 @@
-import structgit
+import struct
 from protocol.message import Message
 from file_manager.bitfield import Bitfield
 
