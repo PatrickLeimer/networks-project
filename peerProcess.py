@@ -63,14 +63,17 @@ def main():
 
     connection_manager = ConnectionManager(
         peer_id,
-        peer_info_list
-    )   
+        peer_info_list,
+        piece_manager
+    )
 
     server = TCPServer(
         peer_id,
         this_peer.hostname,
         this_peer.port,
-        connection_manager
+        connection_manager,
+        piece_manager,
+        common_cfg
     )
 
         

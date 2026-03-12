@@ -9,3 +9,6 @@ venv/
 
 # peer directories
 peer_*/
+
+# log files created
+*.log
