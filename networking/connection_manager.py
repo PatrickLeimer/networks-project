@@ -1,4 +1,5 @@
 from networking.client import connect_to_peer
+from protocol import handshake
 
 
 class ConnectionManager:
@@ -22,29 +23,24 @@ class ConnectionManager:
                 sock = connect_to_peer(peer.hostname, peer.port)
 
                 if sock:
-                    self.connections[peer.peer_id] = sock
+                    # Send our ID, then read theirs to confirm who answered
+                    handshake.send(sock, self.peer_id)
+                    remote_id = handshake.receive(sock)
+
+                    self.connections[remote_id] = sock
 
                     print(
-                        f"Peer {self.peer_id} makes a connection to Peer {peer.peer_id}"
+                        f"Peer {self.peer_id} makes a connection to Peer {remote_id}"
                     )
 
     def register_incoming_connection(self, conn):
-        """
-        Register a new incoming socket connection.
-        The real peer_id will be set after handshake.
-        """
+        # Read their handshake first, then reply with ours
+        remote_id = handshake.receive(conn)
+        handshake.send(conn, self.peer_id)
 
-        temp_id = f"pending_{id(conn)}"
-        self.connections[temp_id] = conn
+        self.connections[remote_id] = conn
 
-    def set_peer_id_for_connection(self, temp_id, peer_id):
-        """
-        After handshake we replace the temporary ID
-        with the real peer_id.
-        """
-
-        conn = self.connections.pop(temp_id)
-        self.connections[peer_id] = conn
+        print(f"Peer {self.peer_id} is connected from Peer {remote_id}")
 
     def get_connection(self, peer_id):
         return self.connections.get(peer_id)
