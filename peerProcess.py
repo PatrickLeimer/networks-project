@@ -71,21 +71,22 @@ def main():
         peer_id,
         this_peer.hostname,
         this_peer.port,
-        connection_manager,
-        piece_manager,
-        common_cfg
+        connection_manager
     )
 
-        
     server_thread = threading.Thread(target=server.start)
     server_thread.daemon = True
     server_thread.start()
 
-
     connection_manager.start_outgoing_connections()
 
-    while True:
-        pass
+    # TODO (termination): exit when all peers report complete file (spec)
+    # for now, block the main thread so daemon threads keep running
+    try:
+        while True:
+            server_thread.join(timeout=1.0)
+    except KeyboardInterrupt:
+        print(f"Peer {peer_id} shutting down")
 
 
 if __name__ == "__main__":
