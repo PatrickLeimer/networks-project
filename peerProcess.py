@@ -64,7 +64,8 @@ def main():
     connection_manager = ConnectionManager(
         peer_id,
         peer_info_list,
-        piece_manager
+        piece_manager,
+        _logger
     )
 
     server = TCPServer(
@@ -87,6 +88,8 @@ def main():
             server_thread.join(timeout=1.0)
     except KeyboardInterrupt:
         print(f"Peer {peer_id} shutting down")
+    finally:
+        _logger.close()
 
 
 if __name__ == "__main__":

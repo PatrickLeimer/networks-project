@@ -1,5 +1,6 @@
 import logging
 
+
 class Logger:
 
     def __init__(self, log_file):
@@ -10,7 +11,7 @@ class Logger:
         self._logger.propagate = False
         self._logger.handlers.clear()
 
-        file_handler = logging.FileHandler(self.log_file, mode="w")
+        file_handler = logging.FileHandler(self.log_file, mode="w", encoding="utf-8")
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(
             # timestamp in following format: date, hour, minute, second
@@ -80,3 +81,9 @@ class Logger:
     def complete_download_log(self, peer_id):
         # [Time]: Peer [peer_ID] has downloaded the complete file.
         self.log_information(f"Peer {peer_id} has downloaded the complete file")
+
+    def close(self):
+        for handler in list(self._logger.handlers):
+            handler.flush()
+            handler.close()
+            self._logger.removeHandler(handler)
