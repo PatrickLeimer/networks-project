@@ -10,11 +10,12 @@ from p2p.peer_connection import PeerConnection
 
 class ConnectionManager:
 
-    def __init__(self, peer_id, peer_info_list, piece_manager):
+    def __init__(self, peer_id, peer_info_list, piece_manager, logger=None):
 
         self.peer_id = peer_id
         self.peer_info_list = peer_info_list
         self.piece_manager = piece_manager
+        self.logger = logger
 
         # peer_id -> NeighborState
         self.neighbors = {}
@@ -30,7 +31,12 @@ class ConnectionManager:
 
             if peer.peer_id < self.peer_id:
 
-                sock = connect_to_peer(peer.hostname, peer.port)
+                try:
+                    sock = connect_to_peer(peer.hostname, peer.port)
+                except OSError:
+                    if self.logger is not None:
+                        self.logger.tcp_failed_connect_log(self.peer_id, peer.peer_id)
+                    continue
 
                 if sock:
                     # send our id, then read theirs to confirm who answered
@@ -42,7 +48,10 @@ class ConnectionManager:
                         sock.close()
                         continue
 
-                    print(f"Peer {self.peer_id} makes a connection to Peer {remote_id}")
+                    if self.logger is not None:
+                        self.logger.tcp_log_connect(self.peer_id, remote_id)
+                    else:
+                        print(f"Peer {self.peer_id} makes a connection to Peer {remote_id}")
 
                     self._setup_neighbor(sock, remote_id)
 
@@ -51,7 +60,10 @@ class ConnectionManager:
         remote_id = handshake.receive(conn)
         handshake.send(conn, self.peer_id)
 
-        print(f"Peer {self.peer_id} is connected from Peer {remote_id}")
+        if self.logger is not None:
+            self.logger.tcp_log_connected_from(self.peer_id, remote_id)
+        else:
+            print(f"Peer {self.peer_id} is connected from Peer {remote_id}")
 
         self._setup_neighbor(conn, remote_id)
 
@@ -104,7 +116,7 @@ class ConnectionManager:
             print(f"Peer {self.peer_id} sending NOT_INTERESTED to {remote_id}")
 
         # kick off the receive loop for the rest of this peer's lifetime
-        pc = PeerConnection(neighbor, self.piece_manager, self.peer_id)
+        pc = PeerConnection(neighbor, self.piece_manager, self.peer_id, self.logger)
         self.peer_connections[remote_id] = pc
         pc.start()
 
