@@ -11,7 +11,8 @@ class Message:
         length = 1 + len(self.payload)
         return struct.pack(">IB", length, self.msg_type) + self.payload
 
-    
+
+    @staticmethod
     def decode(data: bytes):
         msg_type = MessageType(data[0])
         payload = data[1:]

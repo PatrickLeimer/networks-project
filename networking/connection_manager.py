@@ -1,3 +1,5 @@
+import threading
+
 from networking.client import connect_to_peer
 from protocol import handshake
 from protocol.encoder import (
@@ -5,7 +7,10 @@ from protocol.encoder import (
     encode_have,
     encode_interested,
     encode_not_interested,
+<<<<<<< Updated upstream
     encode_request,
+=======
+>>>>>>> Stashed changes
 )
 from protocol.decoder import recv_message, decode_bitfield_payload
 from protocol.message_types import MessageType
@@ -27,18 +32,21 @@ class ConnectionManager:
         }
         self.peer_completion[self.peer_id] = self.piece_manager.completed()
 
-        # peer_id -> NeighborState
         self.neighbors = {}
-
-        # peer_id -> PeerConnection (receive loop)
         self.peer_connections = {}
+        self._lock = threading.Lock()
+
+        # signaled when every peer (including us) reports a complete bitfield
+        self.all_done = threading.Event()
+
+        # expected peer count (everyone else in PeerInfo.cfg)
+        self._expected_peers = {p.peer_id for p in peer_info_list if p.peer_id != peer_id}
 
     def start_outgoing_connections(self):
 
         for peer in self.peer_info_list:
 
             # only connect to peers with smaller ID so there's just one connection per pair
-
             if peer.peer_id < self.peer_id:
 
                 try:
@@ -49,7 +57,6 @@ class ConnectionManager:
                     continue
 
                 if sock:
-                    # send our id, then read theirs to confirm who answered
                     handshake.send(sock, self.peer_id)
                     remote_id = handshake.receive(sock)
 
@@ -60,57 +67,50 @@ class ConnectionManager:
 
                     if self.logger is not None:
                         self.logger.tcp_log_connect(self.peer_id, remote_id)
-                    else:
-                        print(f"Peer {self.peer_id} makes a connection to Peer {remote_id}")
 
                     self._setup_neighbor(sock, remote_id)
 
     def register_incoming_connection(self, conn):
-        # read their handshake first, then reply with ours
         remote_id = handshake.receive(conn)
         handshake.send(conn, self.peer_id)
 
         if self.logger is not None:
             self.logger.tcp_log_connected_from(self.peer_id, remote_id)
-        else:
-            print(f"Peer {self.peer_id} is connected from Peer {remote_id}")
 
         self._setup_neighbor(conn, remote_id)
-
         return remote_id
 
-    # Called on both sides right after handshake. Creates the NeighborState,
-    # does the bitfield + initial interested exchange, then starts the
-    # persistent receive loop.
     def _setup_neighbor(self, sock, remote_id):
 
         neighbor = NeighborState(remote_id, sock, self.piece_manager.num_pieces)
-        self.neighbors[remote_id] = neighbor
+        with self._lock:
+            self.neighbors[remote_id] = neighbor
 
-        # send our bitfield
-        sock.sendall(encode_bitfield(self.piece_manager.bitfield))
-        print(
-            f"Peer {self.peer_id} sent bitfield to {remote_id} "
-            f"({self.piece_manager.piece_count()} pieces)"
-        )
+        # send our bitfield (only if we have at least one piece; spec allows skipping otherwise
+        # but sending an empty bitfield is also fine and simpler)
+        if self.piece_manager.piece_count() > 0:
+            neighbor.send(encode_bitfield(self.piece_manager.bitfield))
 
-        # receive theirs (spec says BITFIELD is always the first message after
-        # handshake, so read it synchronously before starting the loop)
+        # receive theirs (spec allows peer to skip BITFIELD if they have nothing)
         msg = recv_message(sock)
+        first_non_bitfield = None
         if msg.msg_type == MessageType.BITFIELD:
             remote_bitfield = decode_bitfield_payload(
                 msg.payload, self.piece_manager.num_pieces
             )
             neighbor.bitfield = remote_bitfield
+<<<<<<< Updated upstream
             self.update_peer_completion(remote_id, remote_bitfield.is_complete())
             print(
                 f"Peer {self.peer_id} received bitfield from {remote_id} "
                 f"({remote_bitfield.piece_count()} pieces)"
             )
+=======
+>>>>>>> Stashed changes
         else:
-            print(f"Peer {self.peer_id}: expected BITFIELD from {remote_id}, got {msg.msg_type}")
+            first_non_bitfield = msg
 
-        # send INTERESTED or NOT_INTERESTED based on what they have
+        # send INTERESTED or NOT_INTERESTED
         has_something_we_need = False
         for i in range(self.piece_manager.num_pieces):
             if neighbor.bitfield.has_piece(i) and not self.piece_manager.bitfield.has_piece(i):
@@ -119,13 +119,12 @@ class ConnectionManager:
 
         if has_something_we_need:
             neighbor.am_interested = True
-            sock.sendall(encode_interested())
-            print(f"Peer {self.peer_id} sending INTERESTED to {remote_id}")
+            neighbor.send(encode_interested())
         else:
             neighbor.am_interested = False
-            sock.sendall(encode_not_interested())
-            print(f"Peer {self.peer_id} sending NOT_INTERESTED to {remote_id}")
+            neighbor.send(encode_not_interested())
 
+<<<<<<< Updated upstream
         # kick off the receive loop for the rest of this peer's lifetime
         pc = PeerConnection(
             neighbor,
@@ -145,12 +144,25 @@ class ConnectionManager:
 
         for neighbor in self.get_all_neighbors():
             neighbor.sock.sendall(message)
+=======
+        pc = PeerConnection(neighbor, self.piece_manager, self.peer_id, self, self.logger)
+        with self._lock:
+            self.peer_connections[remote_id] = pc
+        # if the peer skipped BITFIELD, dispatch whatever we received instead
+        if first_non_bitfield is not None:
+            pc._dispatch(first_non_bitfield)
+        pc.start()
+
+        # if everyone showed up and everyone's complete, we may be done already
+        self.check_global_completion()
+>>>>>>> Stashed changes
 
     def get_neighbor(self, peer_id):
         return self.neighbors.get(peer_id)
 
     def get_all_neighbors(self):
-        return list(self.neighbors.values())
+        with self._lock:
+            return list(self.neighbors.values())
 
     def update_peer_completion(self, peer_id, is_complete):
         self.peer_completion[peer_id] = is_complete
@@ -171,10 +183,52 @@ class ConnectionManager:
             self.remove_connection(peer_id)
 
     def remove_connection(self, peer_id):
-        if peer_id in self.peer_connections:
-            self.peer_connections[peer_id].stop()
-            del self.peer_connections[peer_id]
+        with self._lock:
+            if peer_id in self.peer_connections:
+                self.peer_connections[peer_id].stop()
+                del self.peer_connections[peer_id]
 
-        if peer_id in self.neighbors:
-            self.neighbors[peer_id].close()
-            del self.neighbors[peer_id]
+            if peer_id in self.neighbors:
+                self.neighbors[peer_id].close()
+                del self.neighbors[peer_id]
+
+    # ---- helpers used by PeerConnection + ChokingManager ----
+
+    def broadcast_have(self, piece_index):
+        msg = encode_have(piece_index)
+        for neighbor in self.get_all_neighbors():
+            try:
+                neighbor.send(msg)
+            except OSError:
+                continue
+
+    def reevaluate_all_interest(self):
+        for neighbor in self.get_all_neighbors():
+            wants_something = False
+            for i in range(self.piece_manager.num_pieces):
+                if neighbor.bitfield.has_piece(i) and not self.piece_manager.bitfield.has_piece(i):
+                    wants_something = True
+                    break
+            try:
+                if wants_something and not neighbor.am_interested:
+                    neighbor.am_interested = True
+                    neighbor.send(encode_interested())
+                elif not wants_something and neighbor.am_interested:
+                    neighbor.am_interested = False
+                    neighbor.send(encode_not_interested())
+            except OSError:
+                continue
+
+    def check_global_completion(self):
+        if not self.piece_manager.completed():
+            return
+        neighbors = self.get_all_neighbors()
+        # must have connected to all expected peers
+        connected_ids = {n.peer_id for n in neighbors}
+        if connected_ids != self._expected_peers:
+            return
+        # every neighbor's bitfield must also be complete
+        for n in neighbors:
+            if not n.bitfield.is_complete():
+                return
+        self.all_done.set()
