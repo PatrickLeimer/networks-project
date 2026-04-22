@@ -18,11 +18,14 @@ class TCPServer:
         self.port = port
         self.connection_manager = connection_manager
         self.server_socket = None
+        self.running = False
 
     def start(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.settimeout(1.0)
         self.server_socket = server
+        self.running = True
 
         try:
             server.bind((self.host, self.port))
@@ -30,8 +33,15 @@ class TCPServer:
 
             print(f"Peer {self.peer_id} listening on port {self.port}")
 
-            while True:
-                conn, addr = server.accept()
+            while self.running:
+                try:
+                    conn, addr = server.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    if self.running:
+                        raise
+                    break
 
                 thread = threading.Thread(
                     target=self.handle_connection,
@@ -40,6 +50,7 @@ class TCPServer:
                 thread.daemon = True
                 thread.start()
         finally:
+            self.running = False
             server.close()
             self.server_socket = None
 
@@ -47,3 +58,11 @@ class TCPServer:
         # handshake, bitfield exchange, and starting the receive loop all
         # happen inside register_incoming_connection now
         self.connection_manager.register_incoming_connection(conn)
+
+    def stop(self):
+        self.running = False
+        if self.server_socket is not None:
+            try:
+                self.server_socket.close()
+            except OSError:
+                pass

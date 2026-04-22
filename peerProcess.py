@@ -8,6 +8,7 @@ from file_manager.logger import Logger
 from file_manager.piece_manager import PieceManager
 from networking.connection_manager import ConnectionManager
 from networking.server  import TCPServer
+from p2p.choking_manager import ChokingManager
 
 
 def main():
@@ -81,14 +82,29 @@ def main():
 
     connection_manager.start_outgoing_connections()
 
+    choking_manager = ChokingManager(
+        peer_id,
+        common_cfg,
+        connection_manager,
+        piece_manager,
+        _logger,
+    )
+    choking_manager.start()
+
     # TODO (termination): exit when all peers report complete file (spec)
-    # for now, block the main thread so daemon threads keep running
     try:
         while True:
+            if connection_manager.all_peers_complete():
+                print(f"Peer {peer_id}: all peers have the complete file. Shutting down.")
+                break
             server_thread.join(timeout=1.0)
     except KeyboardInterrupt:
         print(f"Peer {peer_id} shutting down")
     finally:
+        choking_manager.stop()
+        server.stop()
+        connection_manager.shutdown()
+        server_thread.join(timeout=2.0)
         _logger.close()
 
 

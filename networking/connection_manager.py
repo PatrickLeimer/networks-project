@@ -1,6 +1,12 @@
 from networking.client import connect_to_peer
 from protocol import handshake
-from protocol.encoder import encode_bitfield, encode_interested, encode_not_interested
+from protocol.encoder import (
+    encode_bitfield,
+    encode_have,
+    encode_interested,
+    encode_not_interested,
+    encode_request,
+)
 from protocol.decoder import recv_message, decode_bitfield_payload
 from protocol.message_types import MessageType
 
@@ -16,6 +22,10 @@ class ConnectionManager:
         self.peer_info_list = peer_info_list
         self.piece_manager = piece_manager
         self.logger = logger
+        self.peer_completion = {
+            peer.peer_id: bool(peer.has_file) for peer in peer_info_list
+        }
+        self.peer_completion[self.peer_id] = self.piece_manager.completed()
 
         # peer_id -> NeighborState
         self.neighbors = {}
@@ -92,6 +102,7 @@ class ConnectionManager:
                 msg.payload, self.piece_manager.num_pieces
             )
             neighbor.bitfield = remote_bitfield
+            self.update_peer_completion(remote_id, remote_bitfield.is_complete())
             print(
                 f"Peer {self.peer_id} received bitfield from {remote_id} "
                 f"({remote_bitfield.piece_count()} pieces)"
@@ -116,15 +127,48 @@ class ConnectionManager:
             print(f"Peer {self.peer_id} sending NOT_INTERESTED to {remote_id}")
 
         # kick off the receive loop for the rest of this peer's lifetime
-        pc = PeerConnection(neighbor, self.piece_manager, self.peer_id, self.logger)
+        pc = PeerConnection(
+            neighbor,
+            self.piece_manager,
+            self.peer_id,
+            self,
+            self.logger,
+        )
         self.peer_connections[remote_id] = pc
         pc.start()
+
+    def send_request(self, neighbor, piece_index):
+        neighbor.sock.sendall(encode_request(piece_index))
+
+    def broadcast_have(self, piece_index):
+        message = encode_have(piece_index)
+
+        for neighbor in self.get_all_neighbors():
+            neighbor.sock.sendall(message)
 
     def get_neighbor(self, peer_id):
         return self.neighbors.get(peer_id)
 
     def get_all_neighbors(self):
         return list(self.neighbors.values())
+
+    def update_peer_completion(self, peer_id, is_complete):
+        self.peer_completion[peer_id] = is_complete
+
+    def mark_self_complete(self):
+        self.peer_completion[self.peer_id] = self.piece_manager.completed()
+
+    def all_peers_complete(self):
+        if not self.piece_manager.completed():
+            self.peer_completion[self.peer_id] = False
+            return False
+
+        self.peer_completion[self.peer_id] = True
+        return all(self.peer_completion.get(peer.peer_id, False) for peer in self.peer_info_list)
+
+    def shutdown(self):
+        for peer_id in list(self.peer_connections.keys()):
+            self.remove_connection(peer_id)
 
     def remove_connection(self, peer_id):
         if peer_id in self.peer_connections:
