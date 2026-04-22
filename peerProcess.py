@@ -8,11 +8,7 @@ from config.config_loader import load_common_config, load_peer_info
 from file_manager.logger import Logger
 from file_manager.piece_manager import PieceManager
 from networking.connection_manager import ConnectionManager
-<<<<<<< Updated upstream
-from networking.server  import TCPServer
-=======
 from networking.server import TCPServer
->>>>>>> Stashed changes
 from p2p.choking_manager import ChokingManager
 
 
@@ -61,23 +57,6 @@ def main():
     connection_manager.start_outgoing_connections()
 
     choking_manager = ChokingManager(
-<<<<<<< Updated upstream
-        peer_id,
-        common_cfg,
-        connection_manager,
-        piece_manager,
-        _logger,
-    )
-    choking_manager.start()
-
-    # TODO (termination): exit when all peers report complete file (spec)
-    try:
-        while True:
-            if connection_manager.all_peers_complete():
-                print(f"Peer {peer_id}: all peers have the complete file. Shutting down.")
-                break
-            server_thread.join(timeout=1.0)
-=======
         peer_id=peer_id,
         connection_manager=connection_manager,
         piece_manager=piece_manager,
@@ -93,17 +72,13 @@ def main():
         while not connection_manager.all_done.wait(timeout=1.0):
             pass
         print(f"Peer {peer_id}: all peers complete, shutting down")
->>>>>>> Stashed changes
     except KeyboardInterrupt:
         print(f"Peer {peer_id}: interrupted, shutting down")
     finally:
         choking_manager.stop()
-<<<<<<< Updated upstream
         server.stop()
         connection_manager.shutdown()
         server_thread.join(timeout=2.0)
-=======
->>>>>>> Stashed changes
         _logger.close()
 
 

@@ -7,10 +7,6 @@ from protocol.encoder import (
     encode_have,
     encode_interested,
     encode_not_interested,
-<<<<<<< Updated upstream
-    encode_request,
-=======
->>>>>>> Stashed changes
 )
 from protocol.decoder import recv_message, decode_bitfield_payload
 from protocol.message_types import MessageType
@@ -27,10 +23,6 @@ class ConnectionManager:
         self.peer_info_list = peer_info_list
         self.piece_manager = piece_manager
         self.logger = logger
-        self.peer_completion = {
-            peer.peer_id: bool(peer.has_file) for peer in peer_info_list
-        }
-        self.peer_completion[self.peer_id] = self.piece_manager.completed()
 
         self.neighbors = {}
         self.peer_connections = {}
@@ -86,8 +78,7 @@ class ConnectionManager:
         with self._lock:
             self.neighbors[remote_id] = neighbor
 
-        # send our bitfield (only if we have at least one piece; spec allows skipping otherwise
-        # but sending an empty bitfield is also fine and simpler)
+        # send our bitfield if we have anything
         if self.piece_manager.piece_count() > 0:
             neighbor.send(encode_bitfield(self.piece_manager.bitfield))
 
@@ -99,14 +90,6 @@ class ConnectionManager:
                 msg.payload, self.piece_manager.num_pieces
             )
             neighbor.bitfield = remote_bitfield
-<<<<<<< Updated upstream
-            self.update_peer_completion(remote_id, remote_bitfield.is_complete())
-            print(
-                f"Peer {self.peer_id} received bitfield from {remote_id} "
-                f"({remote_bitfield.piece_count()} pieces)"
-            )
-=======
->>>>>>> Stashed changes
         else:
             first_non_bitfield = msg
 
@@ -124,27 +107,6 @@ class ConnectionManager:
             neighbor.am_interested = False
             neighbor.send(encode_not_interested())
 
-<<<<<<< Updated upstream
-        # kick off the receive loop for the rest of this peer's lifetime
-        pc = PeerConnection(
-            neighbor,
-            self.piece_manager,
-            self.peer_id,
-            self,
-            self.logger,
-        )
-        self.peer_connections[remote_id] = pc
-        pc.start()
-
-    def send_request(self, neighbor, piece_index):
-        neighbor.sock.sendall(encode_request(piece_index))
-
-    def broadcast_have(self, piece_index):
-        message = encode_have(piece_index)
-
-        for neighbor in self.get_all_neighbors():
-            neighbor.sock.sendall(message)
-=======
         pc = PeerConnection(neighbor, self.piece_manager, self.peer_id, self, self.logger)
         with self._lock:
             self.peer_connections[remote_id] = pc
@@ -155,7 +117,6 @@ class ConnectionManager:
 
         # if everyone showed up and everyone's complete, we may be done already
         self.check_global_completion()
->>>>>>> Stashed changes
 
     def get_neighbor(self, peer_id):
         return self.neighbors.get(peer_id)
@@ -163,20 +124,6 @@ class ConnectionManager:
     def get_all_neighbors(self):
         with self._lock:
             return list(self.neighbors.values())
-
-    def update_peer_completion(self, peer_id, is_complete):
-        self.peer_completion[peer_id] = is_complete
-
-    def mark_self_complete(self):
-        self.peer_completion[self.peer_id] = self.piece_manager.completed()
-
-    def all_peers_complete(self):
-        if not self.piece_manager.completed():
-            self.peer_completion[self.peer_id] = False
-            return False
-
-        self.peer_completion[self.peer_id] = True
-        return all(self.peer_completion.get(peer.peer_id, False) for peer in self.peer_info_list)
 
     def shutdown(self):
         for peer_id in list(self.peer_connections.keys()):
