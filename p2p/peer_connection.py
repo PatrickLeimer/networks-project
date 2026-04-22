@@ -127,6 +127,10 @@ class PeerConnection:
 
     def _on_have(self, piece_index):
         self.neighbor.bitfield.set_piece(piece_index)
+        self.connection_manager.update_peer_completion(
+            self.neighbor.peer_id,
+            self.neighbor.bitfield.is_complete(),
+        )
         if self.logger is not None:
             self.logger.rec_have_message_log(self.peer_id, self.neighbor.peer_id, piece_index)
         else:
@@ -145,6 +149,10 @@ class PeerConnection:
         # normally BITFIELD only comes right after handshake, but if we get
         # another one just overwrite so state stays consistent
         self.neighbor.bitfield = remote_bitfield
+        self.connection_manager.update_peer_completion(
+            self.neighbor.peer_id,
+            remote_bitfield.is_complete(),
+        )
         print(f"Peer {self.peer_id} received BITFIELD from {self.neighbor.peer_id}")
         self._reevaluate_interest()
 
@@ -188,12 +196,15 @@ class PeerConnection:
                 piece_count,
             )
             if self.piece_manager.completed():
+                self.connection_manager.mark_self_complete()
                 self.logger.complete_download_log(self.peer_id)
         else:
             print(
                 f"Peer {self.peer_id} downloaded piece {piece_index} from "
                 f"{self.neighbor.peer_id} (now has {piece_count})"
             )
+            if self.piece_manager.completed():
+                self.connection_manager.mark_self_complete()
 
         self.connection_manager.broadcast_have(piece_index)
 

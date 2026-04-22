@@ -22,6 +22,10 @@ class ConnectionManager:
         self.peer_info_list = peer_info_list
         self.piece_manager = piece_manager
         self.logger = logger
+        self.peer_completion = {
+            peer.peer_id: bool(peer.has_file) for peer in peer_info_list
+        }
+        self.peer_completion[self.peer_id] = self.piece_manager.completed()
 
         # peer_id -> NeighborState
         self.neighbors = {}
@@ -98,6 +102,7 @@ class ConnectionManager:
                 msg.payload, self.piece_manager.num_pieces
             )
             neighbor.bitfield = remote_bitfield
+            self.update_peer_completion(remote_id, remote_bitfield.is_complete())
             print(
                 f"Peer {self.peer_id} received bitfield from {remote_id} "
                 f"({remote_bitfield.piece_count()} pieces)"
@@ -146,6 +151,24 @@ class ConnectionManager:
 
     def get_all_neighbors(self):
         return list(self.neighbors.values())
+
+    def update_peer_completion(self, peer_id, is_complete):
+        self.peer_completion[peer_id] = is_complete
+
+    def mark_self_complete(self):
+        self.peer_completion[self.peer_id] = self.piece_manager.completed()
+
+    def all_peers_complete(self):
+        if not self.piece_manager.completed():
+            self.peer_completion[self.peer_id] = False
+            return False
+
+        self.peer_completion[self.peer_id] = True
+        return all(self.peer_completion.get(peer.peer_id, False) for peer in self.peer_info_list)
+
+    def shutdown(self):
+        for peer_id in list(self.peer_connections.keys()):
+            self.remove_connection(peer_id)
 
     def remove_connection(self, peer_id):
         if peer_id in self.peer_connections:
