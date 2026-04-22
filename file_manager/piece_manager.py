@@ -16,6 +16,7 @@ class PieceManager:
         self.bitfield = Bitfield(self.num_pieces, has_file)
 
         self.pieces = {}
+        self.requested_pieces = set()
 
         if has_file:
             self._load_full_file()
@@ -38,12 +39,33 @@ class PieceManager:
 
         return self.pieces.get(index)
 
+    def choose_missing_piece_from(self, remote_bitfield):
+
+        for index in range(self.num_pieces):
+            if self.bitfield.has_piece(index):
+                continue
+
+            if index in self.requested_pieces:
+                continue
+
+            if remote_bitfield.has_piece(index):
+                self.requested_pieces.add(index)
+                return index
+
+        return None
+
     def store_piece(self, index, data):
+
+        self.requested_pieces.discard(index)
 
         if index not in self.pieces:
 
             self.pieces[index] = data
             self.bitfield.set_piece(index)
+
+    def clear_requested_piece(self, index):
+
+        self.requested_pieces.discard(index)
 
     def completed(self):
 

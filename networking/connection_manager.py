@@ -1,6 +1,12 @@
 from networking.client import connect_to_peer
 from protocol import handshake
-from protocol.encoder import encode_bitfield, encode_interested, encode_not_interested
+from protocol.encoder import (
+    encode_bitfield,
+    encode_have,
+    encode_interested,
+    encode_not_interested,
+    encode_request,
+)
 from protocol.decoder import recv_message, decode_bitfield_payload
 from protocol.message_types import MessageType
 
@@ -116,9 +122,24 @@ class ConnectionManager:
             print(f"Peer {self.peer_id} sending NOT_INTERESTED to {remote_id}")
 
         # kick off the receive loop for the rest of this peer's lifetime
-        pc = PeerConnection(neighbor, self.piece_manager, self.peer_id, self.logger)
+        pc = PeerConnection(
+            neighbor,
+            self.piece_manager,
+            self.peer_id,
+            self,
+            self.logger,
+        )
         self.peer_connections[remote_id] = pc
         pc.start()
+
+    def send_request(self, neighbor, piece_index):
+        neighbor.sock.sendall(encode_request(piece_index))
+
+    def broadcast_have(self, piece_index):
+        message = encode_have(piece_index)
+
+        for neighbor in self.get_all_neighbors():
+            neighbor.sock.sendall(message)
 
     def get_neighbor(self, peer_id):
         return self.neighbors.get(peer_id)
