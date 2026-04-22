@@ -74,18 +74,19 @@ Working now:
 - bitfields are exchanged
 - interest / not interested messages are sent
 - each peer keeps state for every neighbor
-- peers can request pieces
-- peers can send pieces
-- peers send `HAVE` after getting a new piece
-- preferred neighbors are chosen on a timer
-- choke / unchoke messages are sent
+- peers request pieces at random from peers that unchoke them
+- peers serve pieces in response to `REQUEST` when not choking the requester
+- peers broadcast `HAVE` after getting a new piece
+- preferred neighbors are chosen every `UnchokingInterval` seconds (random tie-break, random pick when seeder has the full file)
+- one optimistically unchoked neighbor is chosen every `OptimisticUnchokingInterval` seconds
+- choke / unchoke messages are sent accordingly
+- completed file is reassembled and written to `peer_<id>/<file_name>`
 - logs are written to `log_peer_<id>.log`
-- peers can stop automatically once everyone has the full file
+- peers stop automatically once everyone has the full file
 
 Still not fully done:
 
-- optimistic unchoking is not implemented yet
-- there is still room for cleanup and extra testing
+- extra testing on larger peer counts
 
 ## Logs
 
