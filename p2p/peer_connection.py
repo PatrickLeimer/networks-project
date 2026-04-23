@@ -168,7 +168,7 @@ class PeerConnection:
             self.connection_manager.broadcast_have(piece_index)
 
             if self.piece_manager.completed():
-                self.piece_manager.write_to_disk()
+                self.piece_manager.write_file_to_disk()
                 if self.logger is not None:
                     self.logger.complete_download_log(self.peer_id)
                 self.connection_manager.reevaluate_all_interest()

@@ -1,4 +1,5 @@
 import os
+import threading
 from file_manager.bitfield import Bitfield
 
 
@@ -17,7 +18,8 @@ class PieceManager:
         self.bitfield = Bitfield(self.num_pieces, has_file)
 
         self.pieces = {}
-        self.requested_pieces = set()
+        self.pending_requests = set()
+        self._lock = threading.Lock()
         self._flushed = has_file
 
         if has_file:
