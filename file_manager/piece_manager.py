@@ -1,6 +1,4 @@
 import os
-import threading
-
 from file_manager.bitfield import Bitfield
 
 
@@ -19,10 +17,8 @@ class PieceManager:
         self.bitfield = Bitfield(self.num_pieces, has_file)
 
         self.pieces = {}
-
-        # pieces currently being fetched from some peer (prevents duplicate requests)
-        self.pending_requests = set()
-        self._lock = threading.Lock()
+        self.requested_pieces = set()
+        self._flushed = has_file
 
         if has_file:
             self._load_full_file()
@@ -72,15 +68,24 @@ class PieceManager:
     def piece_count(self):
         return self.bitfield.piece_count()
 
-    def write_to_disk(self):
-        # Reassemble pieces in order and write to peer_<id>/<basename of file_name>.
-        if not self.completed():
-            return False
+    def write_file_to_disk(self):
 
-        os.makedirs(self.directory, exist_ok=True)
-        out_path = os.path.join(self.directory, os.path.basename(self.file_name))
+        if self._flushed:
+            return
+
+        if not self.bitfield.is_complete():
+            return
+
+        basename = os.path.basename(self.file_name)
+        out_path = os.path.join(self.directory, basename)
+
+        bytes_remaining = self.file_size
 
         with open(out_path, "wb") as f:
             for i in range(self.num_pieces):
-                f.write(self.pieces[i])
-        return True
+                piece = self.pieces[i]
+                write_len = min(len(piece), bytes_remaining)
+                f.write(piece[:write_len])
+                bytes_remaining -= write_len
+
+        self._flushed = True

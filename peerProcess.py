@@ -69,9 +69,13 @@ def main():
 
     # block until everyone (us + all neighbors) has the complete file
     try:
-        while not connection_manager.all_done.wait(timeout=1.0):
-            pass
-        print(f"Peer {peer_id}: all peers complete, shutting down")
+        while True:
+            if piece_manager.completed():
+                piece_manager.write_file_to_disk()
+            if connection_manager.all_peers_complete():
+                print(f"Peer {peer_id}: all peers have the complete file. Shutting down.")
+                break
+            server_thread.join(timeout=1.0)
     except KeyboardInterrupt:
         print(f"Peer {peer_id}: interrupted, shutting down")
     finally:
