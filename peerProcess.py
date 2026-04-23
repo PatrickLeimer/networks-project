@@ -94,6 +94,8 @@ def main():
     # TODO (termination): exit when all peers report complete file (spec)
     try:
         while True:
+            if piece_manager.completed():
+                piece_manager.write_file_to_disk()
             if connection_manager.all_peers_complete():
                 print(f"Peer {peer_id}: all peers have the complete file. Shutting down.")
                 break

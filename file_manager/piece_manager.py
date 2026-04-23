@@ -1,3 +1,4 @@
+import os
 from file_manager.bitfield import Bitfield
 
 
@@ -17,6 +18,7 @@ class PieceManager:
 
         self.pieces = {}
         self.requested_pieces = set()
+        self._flushed = has_file
 
         if has_file:
             self._load_full_file()
@@ -74,3 +76,25 @@ class PieceManager:
     def piece_count(self):
 
         return self.bitfield.piece_count()
+
+    def write_file_to_disk(self):
+
+        if self._flushed:
+            return
+
+        if not self.bitfield.is_complete():
+            return
+
+        basename = os.path.basename(self.file_name)
+        out_path = os.path.join(self.directory, basename)
+
+        bytes_remaining = self.file_size
+
+        with open(out_path, "wb") as f:
+            for i in range(self.num_pieces):
+                piece = self.pieces[i]
+                write_len = min(len(piece), bytes_remaining)
+                f.write(piece[:write_len])
+                bytes_remaining -= write_len
+
+        self._flushed = True
