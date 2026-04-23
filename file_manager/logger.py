@@ -1,10 +1,12 @@
 import logging
+import threading
 
 
 class Logger:
 
     def __init__(self, log_file):
         self.log_file = log_file
+        self._lock = threading.Lock()
 
         self._logger = logging.getLogger(f"peer_logger_{id(self)}")
         self._logger.setLevel(logging.INFO)
@@ -14,19 +16,24 @@ class Logger:
         file_handler = logging.FileHandler(self.log_file, mode="w", encoding="utf-8")
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(
-            # timestamp in following format: date, hour, minute, second
             logging.Formatter("%(asctime)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
         )
         self._logger.addHandler(file_handler)
+        self._handler = file_handler
+
+    def _write(self, level, message):
+        with self._lock:
+            self._logger.log(level, message)
+            self._handler.flush()
 
     def log_information(self, message):
-        self._logger.info(message)
-    
+        self._write(logging.INFO, message)
+
     def log_warn(self, message):
-        self._logger.warning(message)
+        self._write(logging.WARNING, message)
 
     def log_err(self, message):
-        self._logger.error(message)
+        self._write(logging.ERROR, message)
 
     def tcp_log_connect(self, peer_id, peer2_id):
         # is the ID of peer who generates the log, peer2_id is the peer connected from peer_id
@@ -80,7 +87,7 @@ class Logger:
 
     def complete_download_log(self, peer_id):
         # [Time]: Peer [peer_ID] has downloaded the complete file.
-        self.log_information(f"Peer {peer_id} has downloaded the complete file")
+        self.log_information(f"Peer {peer_id} has downloaded the complete file.")
 
     def close(self):
         for handler in list(self._logger.handlers):

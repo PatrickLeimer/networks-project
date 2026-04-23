@@ -1,3 +1,5 @@
+import threading
+
 from file_manager.bitfield import Bitfield
 
 
@@ -17,6 +19,17 @@ class NeighborState:
         # bytes we downloaded FROM this peer in the current unchoking interval
         # (choking manager resets this every p seconds to pick preferred neighbors)
         self.bytes_downloaded = 0
+
+        # piece_index we've asked this peer for and not yet received; spec says
+        # at most one outstanding request per peer at a time
+        self.pending_request = None
+
+        # serializes sends so choking-manager and receive-loop don't interleave
+        self.send_lock = threading.Lock()
+
+    def send(self, data):
+        with self.send_lock:
+            self.sock.sendall(data)
 
     def close(self):
         try:
